@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Styled Video Recorder</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background-color: #f4f4f4; }
+        .container { margin: 20px auto; width: 60%; padding: 20px; background: white; box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1); border-radius: 10px; }
+        video { width: 100%; border: 2px solid black; border-radius: 10px; }
+        button { margin: 10px; padding: 10px 20px; border: none; border-radius: 5px; background-color: #007bff; color: white; font-size: 16px; cursor: pointer; }
+        button:disabled { background-color: #ccc; }
+        .controls { margin-top: 20px; }
+        .timer { font-size: 18px; margin-top: 10px; }
+        .download-btn { margin-top: 10px; display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Video Recorder</h1>
+        <video id="video" autoplay></video>
+        <div class="controls">
+            <button id="startRec">Start Recording</button>
+            <button id="stopRec" disabled>Stop Recording</button>
+            <button id="capture">Capture Frame</button>
+        </div>
+        <div class="timer" id="timer">00:00</div>
+        <h2>Recorded Video</h2>
+        <video id="recordedVideo" controls></video>
+        <a id="downloadVideo" class="download-btn" style="display: none;" download="recorded-video.webm">Download Video</a>
+    </div>
+    <canvas id="canvas" style="display:none;"></canvas>
+    <script>
+        const video = document.getElementById('video');
+        const startRec = document.getElementById('startRec');
+        const stopRec = document.getElementById('stopRec');
+        const capture = document.getElementById('capture');
+        const recordedVideo = document.getElementById('recordedVideo');
+        const downloadVideo = document.getElementById('downloadVideo');
+        const canvas = document.getElementById('canvas');
+        const timerDisplay = document.getElementById('timer');
+        let mediaRecorder;
+        let recordedChunks = [];
+        let timer;
+        let seconds = 0;
+
+        function updateTimer() {
+            seconds++;
+            let mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+            let secs = (seconds % 60).toString().padStart(2, '0');
+            timerDisplay.textContent = `${mins}:${secs}`;
+        }
+
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+            .then(stream => {
+                video.srcObject = stream;
+                mediaRecorder = new MediaRecorder(stream);
+
+                mediaRecorder.ondataavailable = event => {
+                    if (event.data.size > 0) recordedChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    clearInterval(timer);
+                    seconds = 0;
+                    timerDisplay.textContent = "00:00";
+                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    recordedChunks = [];
+                    recordedVideo.src = URL.createObjectURL(blob);
+                    downloadVideo.href = recordedVideo.src;
+                    downloadVideo.style.display = 'block';
+                };
+
+                startRec.onclick = () => {
+                    recordedChunks = [];
+                    mediaRecorder.start();
+                    startRec.disabled = true;
+                    stopRec.disabled = false;
+                    timer = setInterval(updateTimer, 1000);
+                };
+
+                stopRec.onclick = () => {
+                    mediaRecorder.stop();
+                    startRec.disabled = false;
+                    stopRec.disabled = true;
+                };
+
+                capture.onclick = () => {
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const img = document.createElement('img');
+                    img.src = canvas.toDataURL('image/png');
+                    img.style.marginTop = "10px";
+                    document.body.appendChild(img);
+                    const link = document.createElement('a');
+                    link.href = img.src;
+                    link.download = 'captured-frame.png';
+                    link.textContent = 'Download Capture';
+                    link.className = 'download-btn';
+                    document.body.appendChild(link);
+                };
+            })
+            .catch(error => console.error('Error accessing media devices.', error));
+    </script>
+</body>
+</html>
+
+
